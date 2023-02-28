@@ -111,10 +111,67 @@ end
 class TftpPxegrub2ServerTest < Test::Unit::TestCase
   include TftpGenericServerSuite
 
+  def setup
+    @arch = "x86_64"
+    @bootfile_suffix = "x64"
+    @os = "redhat"
+    @release = "9.4"
+    super
+  end
+
   def setup_paths
     @subject = Proxy::TFTP::Pxegrub2.new
-    @pxe_config_files = ["grub2/grub.cfg-01-aa-bb-cc-dd-ee-ff", "grub2/grub.cfg-aa:bb:cc:dd:ee:ff"]
+    @pxe_config_files = [
+      "host-config/aa-bb-cc-dd-ee-ff/grub2/grub.cfg",
+      "host-config/aa-bb-cc-dd-ee-ff/grub2/grub.cfg-01-aa-bb-cc-dd-ee-ff",
+      "host-config/aa-bb-cc-dd-ee-ff/grub2/grub.cfg-aa:bb:cc:dd:ee:ff",
+      "grub2/grub.cfg-01-aa-bb-cc-dd-ee-ff",
+      "grub2/grub.cfg-aa:bb:cc:dd:ee:ff",
+    ]
     @pxe_default_files = ["grub2/grub.cfg"]
+  end
+
+  def setup_bootloader_common(version)
+    pxeconfig_dir_mac = @subject.pxeconfig_dir(@mac)
+    FileUtils.stubs(:mkdir_p).with(pxeconfig_dir_mac).returns(true).once
+    Dir.stubs(:glob).with(File.join(pxeconfig_dir_mac, "*.efi")).returns([]).once
+    universe_base_path = "bootloader-universe/pxegrub2"
+    Dir.stubs(:exist?).with(File.join(@subject.path, universe_base_path, @os, @release, @arch)).returns(false).once if version != @release
+    bootloader_path = File.join(@subject.path, universe_base_path, @os, version, @arch)
+    Dir.stubs(:exist?).with(bootloader_path).returns(true).once
+    Dir.stubs(:glob).with(File.join(bootloader_path, "*.efi")).returns([
+                                                                         File.join(bootloader_path, "boot.efi"),
+                                                                         File.join(bootloader_path, "boot-sb.efi"),
+                                                                         File.join(bootloader_path, "grubx64.efi"),
+                                                                         File.join(bootloader_path, "shimx64.efi"),
+                                                                       ]).once
+    relative_bootloader_path = File.join("../../..", universe_base_path, @os, version, @arch)
+    FileUtils.stubs(:ln_s).with(File.join(relative_bootloader_path, "boot.efi"), File.join(pxeconfig_dir_mac, "boot.efi"), {:force => true}).returns(true).once
+    FileUtils.stubs(:ln_s).with(File.join(relative_bootloader_path, "boot-sb.efi"), File.join(pxeconfig_dir_mac, "boot-sb.efi"), {:force => true}).returns(true).once
+    FileUtils.stubs(:ln_s).with(File.join(relative_bootloader_path, "grubx64.efi"), File.join(pxeconfig_dir_mac, "grubx64.efi"), {:force => true}).returns(true).once
+    FileUtils.stubs(:ln_s).with(File.join(relative_bootloader_path, "shimx64.efi"), File.join(pxeconfig_dir_mac, "shimx64.efi"), {:force => true}).returns(true).once
+
+    @subject.setup_bootloader(mac: @mac, os: @os, release: @release, arch: @arch, bootfile_suffix: @bootfile_suffix)
+  end
+
+  def test_setup_bootloader
+    pxeconfig_dir_mac = @subject.pxeconfig_dir(@mac)
+    FileUtils.stubs(:mkdir_p).with(pxeconfig_dir_mac).returns(true).once
+    relative_bootloader_path = "../../../grub2/"
+    FileUtils.stubs(:ln_s).with(File.join(relative_bootloader_path, "grubx64.efi"), File.join(pxeconfig_dir_mac, "boot.efi"), {:force => true}).returns(true).once
+    FileUtils.stubs(:ln_s).with(File.join(relative_bootloader_path, "grubx64.efi"), File.join(pxeconfig_dir_mac, "grubx64.efi"), {:force => true}).returns(true).once
+    FileUtils.stubs(:ln_s).with(File.join(relative_bootloader_path, "shimx64.efi"), File.join(pxeconfig_dir_mac, "boot-sb.efi"), {:force => true}).returns(true).once
+    FileUtils.stubs(:ln_s).with(File.join(relative_bootloader_path, "shimx64.efi"), File.join(pxeconfig_dir_mac, "shimx64.efi"), {:force => true}).returns(true).once
+
+    @subject.setup_bootloader(mac: @mac, os: @os, release: @release, arch: @arch, bootfile_suffix: @bootfile_suffix)
+  end
+
+  def test_setup_bootloader_from_unversioned_bootloader_universe
+    setup_bootloader_common("default")
+  end
+
+  def test_setup_bootloader_from_versioned_bootloader_universe
+    setup_bootloader_common(@release)
   end
 end
 
