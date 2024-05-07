@@ -39,15 +39,16 @@ module Proxy::IntegrationTestCase
   end
 
   def launch(protocol: 'https', plugins: [], settings: {})
+    ip = "127.0.0.1"
     port = 1024 + rand(63_000)
     @settings = Proxy::Settings::Global.new(settings.merge("#{protocol}_port" => port))
     @t = Thread.new do
       launcher = Proxy::Launcher.new(@settings)
       app = launcher.public_send("#{protocol}_app", port, plugins)
-      launcher.webrick_server(app.merge(AccessLog: [Logger.new('/dev/null')]), ['localhost'], port).start
+      launcher.webrick_server(app.merge(AccessLog: [Logger.new('/dev/null')]), [ip], port).start
     end
     Timeout.timeout(2) do
-      sleep(0.1) until can_connect?('localhost', @settings.send("#{protocol}_port"))
+      sleep(0.1) until can_connect?(ip, @settings.send("#{protocol}_port"))
     end
   end
 
