@@ -29,44 +29,6 @@ def hash_symbols_to_strings(hash)
   Hash[hash.collect { |k, v| [k.to_s, v] }]
 end
 
-# Starts up a real smart proxy instance under WEBrick
-# Use sparingly.  API tests should use rack-test etc.
-module Proxy::IntegrationTestCase
-  include Proxy::Log
-
-  def setup
-    WebMock.allow_net_connect!
-  end
-
-  def launch(protocol: 'https', plugins: [], settings: {})
-    port = 1024 + rand(63_000)
-    @settings = Proxy::Settings::Global.new(settings.merge("#{protocol}_port" => port))
-    @t = Thread.new do
-      launcher = Proxy::Launcher.new(@settings)
-      app = launcher.public_send("#{protocol}_app", port, plugins)
-      launcher.webrick_server(app.merge(AccessLog: [Logger.new('/dev/null')]), ['localhost'], port).start
-    end
-    Timeout.timeout(2) do
-      sleep(0.1) until can_connect?('localhost', @settings.send("#{protocol}_port"))
-    end
-  end
-
-  def can_connect?(host, port)
-    TCPSocket.new(host, port).close
-    true
-  rescue Errno::ECONNREFUSED, Errno::EHOSTUNREACH
-    false
-  end
-
-  def teardown
-    WebMock.disable_net_connect!
-    if @t
-      Thread.kill(@t)
-      @t.join(30)
-    end
-  end
-end
-
 class SmartProxyRootApiTestCase < Test::Unit::TestCase
   include Rack::Test::Methods
 
