@@ -9,5 +9,7 @@ module ::Proxy::DHCP::NativeMS
 
     load_classes ::Proxy::DHCP::NativeMS::PluginConfiguration
     load_dependency_injection_wirings ::Proxy::DHCP::NativeMS::PluginConfiguration
+
+    start_services :free_ips
   end
 end
